@@ -2,7 +2,9 @@ import java.util.ArrayList;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.Exchanger;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Example {
     public static void CurrentThreadExample(){
@@ -69,6 +71,70 @@ public class Example {
         Exchanger<String> exMessage = new Exchanger<>();
         new Thread(new Client(exMessage)).start();
         new Thread(new Server(exMessage)).start();
+    }
+
+    public static void PhaserExample(){
+        Phaser phaser = new Phaser(1);
+        new Thread(new PhaseThread(phaser, "Member 1")).start();
+        new Thread(new PhaseThread(phaser, "Member 2")).start();
+
+        System.out.println("Main run phase " + phaser.getPhase());
+        int phase = phaser.getPhase();
+        try{
+            Thread.sleep(500);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndAwaitAdvance();
+        System.out.println("Phase " + phase + " finished");
+
+        System.out.println("Main run phase " + phaser.getPhase());
+        phase = phaser.getPhase();
+        try{
+            Thread.sleep(500);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndAwaitAdvance();
+        System.out.println("Phase " + phase + " finished");
+
+        System.out.println("Main run phase " + phaser.getPhase());
+        phase = phaser.getPhase();
+        try{
+            Thread.sleep(500);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndDeregister();
+        System.out.println("Phase " + phase + " finished");
+    }
+
+    public static void LockExample(){
+        Resource resource = new Resource();
+        ReentrantLock locker = new ReentrantLock();
+
+        ArrayList<Thread> threads = new ArrayList<>();
+
+        for(int i = 0; i < 5; i++){
+            Thread thread = new Thread(new CountLockedThread(resource, locker));
+            threads.add(thread);
+            thread.start();
+        }
+
+        for(var t : threads){
+            try{
+                t.join();
+            }
+            catch (Exception ex){
+                System.out.println(ex.getMessage());
+            }
+        }
+
+
+        System.out.println("Count = " + resource.Count);
     }
 }
 
@@ -146,8 +212,8 @@ class CounterThread implements Runnable{
     }
     @Override
     public void run() {
-        for(int i = 0; i < 10000; i++){
-            synchronized (resource){
+        for (int i = 0; i < 10000; i++) {
+            synchronized (resource) {
                 resource.Increment();
                 //System.out.println(Thread.currentThread().getName() + ": " + resource.Count);
             }
@@ -295,6 +361,65 @@ class Client implements Runnable{
         }
         catch (Exception ex){
             System.out.println(ex.getMessage());
+        }
+    }
+}
+
+class PhaseThread implements Runnable{
+    Phaser phaser;
+    String name;
+
+    PhaseThread(Phaser phaser, String name){
+        this.phaser = phaser;
+        this.name = name;
+        phaser.register();
+    }
+
+    @Override
+    public void run() {
+        System.out.println(name + " run phase " + phaser.getPhase());
+        try{
+            Thread.sleep(2000);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndAwaitAdvance();
+
+        System.out.println(name + " run phase " + phaser.getPhase());
+        try{
+            Thread.sleep(2000);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndAwaitAdvance();
+
+        System.out.println(name + " run phase " + phaser.getPhase());
+        try{
+            Thread.sleep(2000);
+        }
+        catch(Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        phaser.arriveAndDeregister();
+    }
+}
+
+class CountLockedThread implements Runnable{
+    Resource resource;
+    ReentrantLock locker;
+
+    CountLockedThread(Resource resource, ReentrantLock locker){
+        this.resource = resource;
+        this.locker = locker;
+    }
+    @Override
+    public void run() {
+        for(int i = 0; i < 10000; i++){
+            locker.lock();
+            resource.Increment();
+            locker.unlock();
         }
     }
 }
